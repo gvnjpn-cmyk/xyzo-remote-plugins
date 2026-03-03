@@ -1,40 +1,19 @@
 'use strict';
-/**
- * Plugins-CJS/menu-search.js — Sub-menu Search
- */
 
-const SEARCH_COMMANDS = [
-  { cmd: 'ytsearch',  desc: 'Cari video YouTube'               },
-  { cmd: 'yts',       desc: 'Alias ytseach'                    },
-];
+module.exports = async (m, ctx) => {
+  const { prefix = '.', reply } = ctx;
 
-const handler = async (m, ctx) => {
-  const { prefix = '.', sock, conn, bot } = ctx;
-  const wa = sock || conn || bot;
+  const text =
+`🔎 *SEARCH MENU*
+━━━━━━━━━━━━━━━━━━
+• *${prefix}yts <query>* — cari YouTube
+• *${prefix}google <query>* — cari Google (kalau ada)
+• *${prefix}pinterest <query>* — cari gambar (kalau ada)
 
-  let text = `╭━━━━━━━━━━━━━━━━━━━╮\n`;
-  text += `┃  🔍 *MENU SEARCH*\n`;
-  text += `┃  ${SEARCH_COMMANDS.length} Command\n`;
-  text += `╰━━━━━━━━━━━━━━━━━━━╯\n\n`;
+📌 Contoh: *${prefix}yts dj tiktok viral*`;
 
-  for (const { cmd, desc } of SEARCH_COMMANDS) {
-    text += `• *${prefix}${cmd}*\n  └ ${desc}\n`;
-  }
-
-  text += `\n💡 Contoh: *${prefix}ytsearch Alan Walker*`;
-
-  await wa.sendMessage(
-    m.key.remoteJid,
-    {
-      text,
-      contextInfo: global.thumbnail
-        ? {
-            externalAdReply: {
-              title: '🔍 Search Menu',
-              body: `${SEARCH_COMMANDS.length} command tersedia`,
-              thumbnailUrl: global.thumbnail,
-              mediaType: 1,
-              renderLargerThumbnail: false,
+  return reply(text);
+};              renderLargerThumbnail: false,
             }
           }
         : {}

@@ -3,25 +3,22 @@
 const mafiaGame = require('../Games/mafia');
 
 const handler = async (m, ctx) => {
-  const { sock, isGroup, isOwner } = ctx;
+  const { sock, isGroup, isOwner, text } = ctx;
 
-  const text = m.text || m.message?.conversation || '';
-  const parts = text.trim().split(/\s+/);
+  const body = text || '';
+  const parts = body.trim().split(/\s+/);
   const args = parts.slice(1);
-
-  const groupJid = m.key.remoteJid;
 
   m.isGroup = isGroup;
   m.isOwner = isOwner;
+  m.pushName = ctx.pushName;
 
-  console.log('DEBUG MAFIA:', {
-    text,
+  return mafiaGame.handleMafia(
+    sock,
+    m,
     args,
-    isGroup,
-    groupJid
-  });
-
-  return mafiaGame.handleMafia(sock, m, args, groupJid);
+    m.key.remoteJid
+  );
 };
 
 handler.command = ['mafia', 'mfa', 'werewolf', 'ww'];

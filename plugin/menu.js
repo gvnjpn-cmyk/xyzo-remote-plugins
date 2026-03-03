@@ -1,180 +1,141 @@
-'use strict';
-/**
- * Plugins-CJS/menu.js — Main Menu Router
- *
- * Pattern: function plugin + .command array (kompatibel handler.js)
- *
- * Cara kerja:
- *   .menu            → tampilkan daftar kategori
- *   .menu owner      → delegate ke menu-owner.js
- *   .menu tools      → delegate ke menu-tools.js
- *   .menu <kategori> → delegate ke plugin yg sesuai SUB_MAP
- */
+'use strict'
 
-const path = require('path');
-const { name, version } = require('../package.json');
-const { runtime } = require('../System/message');
+const fs = require('fs')
+const path = require('path')
+const { name, version } = require('../package.json')
+const { runtime } = require('../System/message')
 
-// ─── SUB_MAP ─────────────────────────────────────────────────────────────────
-// Tambah kategori baru CUKUP di sini — tanpa sentuh XYZO.js
-// key: keyword yg user ketik | value: nama file di Plugins-CJS/
+// ─── Developer ───────────────────────────────
+const DEV_NAME = global.developer?.name || 'Unknown Developer'
+
+// ─── Plugin Count (Dynamic) ──────────────────
+function countPlugins() {
+  const dir = path.join(__dirname)
+  return fs.readdirSync(dir).filter(f => f.endsWith('.js')).length
+}
+
+// ─── Submenu Mapping ─────────────────────────
 const SUB_MAP = {
-  owner:    'menu-owner',
-  own:      'menu-owner',    // alias
-  group:    'menu-group',
-  grup:     'menu-group',    // alias Indonesia
-  game:     'menu-game',
-  games:    'menu-game',     // alias
-  tools:    'menu-tools',
-  tool:     'menu-tools',    // alias
+  owner: 'menu-owner',
+  group: 'menu-group',
+  game: 'menu-game',
+  tools: 'menu-tools',
   download: 'menu-download',
-  dl:       'menu-download', // alias
-  search:   'menu-search',
-  cari:     'menu-search',   // alias Indonesia
-};
+  search: 'menu-search'
+}
 
-// ─── Daftar kategori untuk tampilan utama ─────────────────────────────────────
 const CATEGORIES = [
-  { emoji: '👑', label: 'Owner',    key: 'owner',    ownerOnly: true  },
-  { emoji: '👥', label: 'Group',    key: 'group',    ownerOnly: false },
-  { emoji: '🎮', label: 'Game',     key: 'game',     ownerOnly: false },
-  { emoji: '🔧', label: 'Tools',    key: 'tools',    ownerOnly: false },
-  { emoji: '📥', label: 'Download', key: 'download', ownerOnly: false },
-  { emoji: '🔍', label: 'Search',   key: 'search',   ownerOnly: false },
-];
+  { emoji: '👑', key: 'owner', ownerOnly: true },
+  { emoji: '👥', key: 'group' },
+  { emoji: '🎮', key: 'game' },
+  { emoji: '🛠️', key: 'tools' },
+  { emoji: '📥', key: 'download' },
+  { emoji: '🔎', key: 'search' }
+]
 
-// ─── Plugin cache — cegah require() berulang ─────────────────────────────────
-const _subCache = new Map();
+// ─── Cache Loader ────────────────────────────
+const _cache = new Map()
 
 function loadSub(pluginName) {
-  if (_subCache.has(pluginName)) return _subCache.get(pluginName);
+  if (_cache.has(pluginName)) return _cache.get(pluginName)
   try {
-    const mod = require(path.join(__dirname, `${pluginName}.js`));
-    _subCache.set(pluginName, mod);
-    return mod;
-  } catch (e) {
-    console.error(`[MenuRouter] Gagal load sub-plugin "${pluginName}":`, e.message);
-    return null;
+    const mod = require(path.join(__dirname, `${pluginName}.js`))
+    _cache.set(pluginName, mod)
+    return mod
+  } catch {
+    return null
   }
 }
 
-// ─── Builder: tampilan menu utama ─────────────────────────────────────────────
-function buildMainMenu(isOwner, prefix, uptime) {
-  const visibleCats = CATEGORIES.filter(c => !c.ownerOnly || isOwner);
-  const pad = '  ';
-
-  let text =
-`╭━━━━━━━━━━━━━━━━━━━╮
-┃  🤖 *${name || 'XYZO Asisten'}*
-┃  ⚡ v${version || '1.0.0'}
-┃  🕒 ${uptime}
-╰━━━━━━━━━━━━━━━━━━━╯
-
-📋 *Kategori Menu:*\n`;
-
-  for (const cat of visibleCats) {
-    text += `${pad}${cat.emoji} *${prefix}menu ${cat.key}*\n`;
-  }
-
-  text += `\n💡 Ketik *${prefix}menu <kategori>* untuk detail\n`;
-  text += `📌 Contoh: *${prefix}menu tools*`;
-
-  return text;
-}
-
-// ─── Main plugin handler ───────────────────────────────────────────────────────
+// ─── Main Handler ────────────────────────────
 const handler = async (m, ctx) => {
   const {
-    sock, conn, bot,
-    args     = [],
-    prefix   = '.',
-    isOwn    = false,
-    isGroup  = false,
+    sock,
+    args = [],
+    prefix = '.',
+    isOwn = false,
     reply,
-    text     = ''
-  } = ctx;
+    text = ''
+  } = ctx
 
-  const wa = sock || conn || bot;
-  const uptime = runtime(process.uptime());
+  const input = (args[0] || '').toLowerCase()
+  const raw = text.replace(prefix, '').toLowerCase()
 
-  // 🔥 Fallback parsing biar kebal args kosong
-  const raw = (text || '').trim();
-  const fallback = raw.split(/\s+/)[1] || '';
-  const subKey = (args[0] || fallback || '').toLowerCase().trim();
-
-  // ── KASUS 1: .menu <kategori> ───────────────────────────
-  if (subKey) {
-
-    if ((subKey === 'owner' || subKey === 'own') && !isOwn) {
-      return reply(`🔒 Kategori ini hanya untuk *owner bot*.`);
-    }
-
-    const pluginName = SUB_MAP[subKey];
-
-    if (!pluginName) {
-      const keys = Object.keys(SUB_MAP)
-        .filter((k, i, arr) => arr.indexOf(k) === i)
-        .filter(k => {
-          const cat = CATEGORIES.find(c => c.key === k);
-          return !cat?.ownerOnly || isOwn;
-        });
-
-      return reply(
-        `❓ Kategori *"${subKey}"* tidak ditemukan.\n\n` +
-        keys.map(k => `• ${prefix}menu ${k}`).join('\n')
-      );
-    }
-
-    const subPlugin = loadSub(pluginName);
-
-    if (!subPlugin || typeof subPlugin !== 'function') {
-      return reply(`⚠️ Sub-menu *${subKey}* belum tersedia.`);
-    }
-
-    try {
-      return await subPlugin(m, ctx);
-    } catch (err) {
-      console.error(`[MenuRouter] Error di "${pluginName}":`, err);
-      return reply(`❌ Error membuka menu *${subKey}*.`);
-    }
+  // Direct command
+  if (SUB_MAP[raw]) {
+    const sub = loadSub(SUB_MAP[raw])
+    if (sub) return sub(m, ctx)
   }
 
-  // ── KASUS 2: .menu tanpa argumen ─────────────────────────
+  // menu <kategori>
+  if (input && SUB_MAP[input]) {
+    if (input === 'owner' && !isOwn)
+      return reply('🔒 Menu khusus owner.')
+    const sub = loadSub(SUB_MAP[input])
+    if (sub) return sub(m, ctx)
+  }
 
-  const userNum = (m.sender || '').split('@')[0];
+  // Main menu
+  const user = m.sender.split('@')[0]
+  const uptime = runtime(process.uptime())
+  const totalPlugins = countPlugins()
 
-  const menuText =
-`Halo @${userNum} 👋
+  const visible = CATEGORIES.filter(c => !c.ownerOnly || isOwn)
 
-` + buildMainMenu(isOwn, prefix, uptime);
+  let txt =
+`╭━━━〔 ${name} 〕━━━⬣
+┃ Version   : v${version}
+┃ Runtime   : ${uptime}
+┃ Plugins   : ${totalPlugins}
+╰━━━━━━━━━━━━━━━━⬣
+
+Halo @${user} 👋
+
+Bot ini dirancang dengan sistem modular agar fleksibel, ringan, dan mudah dikembangkan.
+
+📂 *Menu Tersedia*
+`
+
+  for (const cat of visible) {
+    txt += `\n${cat.emoji}  ${prefix}${cat.key}`
+  }
+
+  txt += `
+
+━━━━━━━━━━━━━━━━━━
+📌 Gunakan:
+• ${prefix}menu <kategori>
+• Atau langsung: ${prefix}tools
+
+👨‍💻 Developer : ${DEV_NAME}
+`
 
   const contextInfo = global.thumbnail
     ? {
         externalAdReply: {
-          title: name || 'XYZO Asisten',
-          body: `v${version || '1.0.0'} • ${uptime}`,
+          title: `${name} v${version}`,
+          body: `Developed by ${DEV_NAME}`,
           thumbnailUrl: global.thumbnail,
           mediaType: 1,
           renderLargerThumbnail: true,
           showAdAttribution: false
         }
       }
-    : {};
+    : {}
 
-  await wa.sendMessage(
-    m.key.remoteJid,
+  await sock.sendMessage(
+    m.chat,
     {
-      text: menuText,
+      text: txt,
       mentions: [m.sender],
       contextInfo
     },
     { quoted: m }
-  );
-};
-  
-// ─── Plugin metadata (wajib untuk handler.js) ─────────────────────────────────
-handler.command = ['menu', 'help'];
-handler.tags    = ['main'];
-handler.help    = ['menu'];
+  )
+}
 
-module.exports = handler;
+handler.command = ['menu', 'help', ...Object.keys(SUB_MAP)]
+handler.tags = ['main']
+handler.help = ['menu']
+
+module.exports = handler

@@ -5,16 +5,18 @@ const mafiaGame = require('../Games/mafia');
 const handler = async (m, ctx) => {
   const { sock } = ctx;
 
-  // 🔥 Fallback parsing biar kebal args kosong
+  // fallback parsing
   const text = m.text || m.message?.conversation || '';
   const parts = text.trim().split(/\s+/);
   const args = parts.slice(1);
+
+  const groupJid = m.key.remoteJid;
 
   return mafiaGame.handleMafia(
     sock,
     m,
     args,
-    m.key.remoteJid
+    groupJid
   );
 };
 

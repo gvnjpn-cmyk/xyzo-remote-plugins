@@ -1,45 +1,49 @@
 'use strict';
 /**
  * Plugins-CJS/menu.js — Main Menu Router (V3)
- * - .menu -> tampil menu utama
- * - .menu <kategori> -> delegate ke submenu
- * - .tools / .download / .search / .game / .group -> juga bisa (direct)
- * - owner submenu: .menu owner (biar gak bentrok sama command "owner" di switch)
+ *
+ * Support:
+ *  .menu / .help                → menu utama
+ *  .menu <kategori>             → submenu
+ *  .tools / .download / .search → langsung submenu (tanpa .menu-tools)
+ *
+ * Catatan:
+ * - Submenu di-handle oleh file helper: menu-tools.js, menu-download.js, dst.
+ * - Greeting pakai mention (tag), bukan nomor doang.
+ * - Text-only, tanpa sticker.
  */
 
 const path = require('path');
 const { name, version } = require('../package.json');
 const { runtime } = require('../System/message');
 
+// keyword → file submenu (tanpa ".js")
 const SUB_MAP = {
   owner:    'menu-owner',
   own:      'menu-owner',
-
   group:    'menu-group',
   grup:     'menu-group',
-
   game:     'menu-game',
   games:    'menu-game',
-
   tools:    'menu-tools',
   tool:     'menu-tools',
-
   download: 'menu-download',
   dl:       'menu-download',
-
   search:   'menu-search',
   cari:     'menu-search',
 };
 
+// menu utama tampilkan kategori ini
 const CATEGORIES = [
-  { emoji: '👥', label: 'Group',    key: 'group',    directCmd: 'group',    ownerOnly: false },
-  { emoji: '🎮', label: 'Game',     key: 'game',     directCmd: 'game',     ownerOnly: false },
-  { emoji: '🛠️', label: 'Tools',    key: 'tools',    directCmd: 'tools',    ownerOnly: false },
-  { emoji: '📥', label: 'Download', key: 'download', directCmd: 'download', ownerOnly: false },
-  { emoji: '🔎', label: 'Search',   key: 'search',   directCmd: 'search',   ownerOnly: false },
-  { emoji: '👑', label: 'Owner',    key: 'owner',    directCmd: null,       ownerOnly: true  }, // via .menu owner
+  { emoji: '👑', label: 'Owner',    key: 'owner',    ownerOnly: true  },
+  { emoji: '👥', label: 'Group',    key: 'group',    ownerOnly: false },
+  { emoji: '🎮', label: 'Game',     key: 'game',     ownerOnly: false },
+  { emoji: '🧰', label: 'Tools',    key: 'tools',    ownerOnly: false },
+  { emoji: '📥', label: 'Download', key: 'download', ownerOnly: false },
+  { emoji: '🔎', label: 'Search',   key: 'search',   ownerOnly: false },
 ];
 
+// cache require submenu
 const _subCache = new Map();
 function loadSub(pluginName) {
   if (_subCache.has(pluginName)) return _subCache.get(pluginName);
@@ -48,117 +52,130 @@ function loadSub(pluginName) {
     _subCache.set(pluginName, mod);
     return mod;
   } catch (e) {
-    console.error(`[MenuV3] gagal load "${pluginName}":`, e.message);
+    console.error(`[MenuRouter] Gagal load "${pluginName}":`, e.message);
     return null;
   }
 }
 
-function formatDevLine() {
+function devLine() {
   const dev = global.developer || {};
-  const parts = [];
-  if (dev.name) parts.push(`Dev: ${dev.name}`);
-  if (dev.contact) parts.push(`WA: ${dev.contact}`);
-  if (dev.github) parts.push(`GitHub: ${dev.github}`);
-  return parts.length ? parts.join(' • ') : null;
+  const n = dev.name ? `👨‍💻 Dev: ${dev.name}` : null;
+  const g = dev.github ? `🌐 ${dev.github}` : null;
+  const c = dev.contact ? `📱 ${dev.contact}` : null;
+  return [n, g, c].filter(Boolean).join('\n');
 }
 
-function buildMainMenu({ isOwn, prefix, uptime, pushname, senderJid }) {
-  const botName = name || 'XYZO Asisten';
-  const botVer  = version || '1.0.0';
-
-  const devLine = formatDevLine();
+function buildMainMenu({ isOwn, prefix, uptime }) {
   const visibleCats = CATEGORIES.filter(c => !c.ownerOnly || isOwn);
 
-  let text =
-`Halo @${senderJid.split('@')[0]} 👋
-Aku *${botName}*, asisten WhatsApp yang siap bantu kamu 24/7.
-Kamu bisa akses fitur lewat kategori di bawah ini — tinggal ketik perintahnya.
+  const header =
+`╭━━━━━━━━━━━━━━━━━━━━╮
+┃ 🤖 *${name || 'XYZO Asisten'}*
+┃ ⚡ v${version || '1.0.0'}
+┃ 🕒 ${uptime}
+╰━━━━━━━━━━━━━━━━━━━━╯`;
 
-${devLine ? `_${devLine}_\n` : ''}` +
-`╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃ 🤖 *${botName}*
-┃ ⚡ v${botVer}
-┃ ⏱️ ${uptime}
-╰━━━━━━━━━━━━━━━━━━━━━━╯
+  const dev = devLine();
+  const devBlock = dev ? `\n${dev}\n` : '';
 
-📚 *Menu Utama:*\n`;
-
+  let list = '📚 *Menu Utama*\n';
   for (const cat of visibleCats) {
-    if (cat.key === 'owner') {
-      text += `• ${cat.emoji} *${prefix}menu owner*\n`;
-    } else {
-      text += `• ${cat.emoji} *${prefix}${cat.directCmd}*\n`;
-    }
+    // direct command: .tools, .download, dll
+    list += `• ${cat.emoji} *${prefix}${cat.key}*\n`;
   }
 
-  text += `\n🧭 *Tips:*\n`;
-  text += `• Ketik *${prefix}menu* untuk lihat menu ini lagi\n`;
-  text += `• Kamu juga bisa pakai gaya lama: *${prefix}menu tools* / *${prefix}menu game*`;
+  const tips =
+`\n💡 *Cara pakai:*
+• Ketik *${prefix}tools* untuk lihat Tools
+• Ketik *${prefix}menu* untuk daftar lengkap
+• Ketik *${prefix}menu <kategori>* juga bisa
 
-  return text;
+📌 Contoh: *${prefix}tools* / *${prefix}menu tools*`;
+
+  return `${header}${devBlock}\n${list}${tips}`.trim();
 }
 
+function pickSubKey(ctx) {
+  // kalau user ngetik ".tools" → command = "tools"
+  const invoked = (ctx.command || '').toLowerCase().trim();
+  const rawText = (ctx.text || '').trim();
+  const args0 = (ctx.args && ctx.args[0]) ? String(ctx.args[0]).toLowerCase().trim() : '';
+
+  // invoked selain menu/help → anggap langsung kategori
+  if (invoked && invoked !== 'menu' && invoked !== 'help') return invoked;
+
+  // mode ".menu tools"
+  if (args0) return args0;
+
+  // fallback parsing kalau args kosong
+  const fallback = rawText.split(/\s+/)[1] || '';
+  return (fallback || '').toLowerCase().trim();
+}
+
+async function runSubmenu(m, ctx, subKey) {
+  const { reply, isOwn, prefix } = ctx;
+
+  // protect owner menu
+  if ((subKey === 'owner' || subKey === 'own') && !isOwn) {
+    return reply('🔒 Kategori ini hanya untuk *owner bot*.');
+  }
+
+  const pluginName = SUB_MAP[subKey];
+  if (!pluginName) {
+    const allowed = Object.keys(SUB_MAP)
+      .filter((k, i, arr) => arr.indexOf(k) === i)
+      .filter(k => {
+        const cat = CATEGORIES.find(c => c.key === k);
+        return !cat?.ownerOnly || isOwn;
+      });
+
+    return reply(
+      `❓ Kategori *"${subKey}"* tidak ditemukan.\n\n` +
+      `Coba salah satu:\n` +
+      allowed.map(k => `• ${prefix}${k}`).join('\n')
+    );
+  }
+
+  const subPlugin = loadSub(pluginName);
+  if (!subPlugin || typeof subPlugin !== 'function') {
+    return reply(`⚠️ Sub-menu *${subKey}* belum tersedia.`);
+  }
+
+  try {
+    return await subPlugin(m, ctx);
+  } catch (err) {
+    console.error(`[MenuRouter] Error di "${pluginName}":`, err);
+    return reply(`❌ Error membuka menu *${subKey}*.`);
+  }
+}
+
+// ─── Main plugin handler ─────────────────────────────────────────────────────
 const handler = async (m, ctx) => {
   const {
     sock, conn, bot,
-    args = [],
     prefix = '.',
     isOwn = false,
     reply,
-    text = '',
-    pushname = ''
   } = ctx;
 
   const wa = sock || conn || bot;
   const uptime = runtime(process.uptime());
 
-  // fallback args (biar .menu tools dari list response aman)
-  const raw = (text || '').trim();
-  const fallbackSub = raw.split(/\s+/)[1] || '';
-  const subKey = (args[0] || fallbackSub || '').toLowerCase().trim();
+  const subKey = pickSubKey(ctx);
+  if (subKey) return runSubmenu(m, ctx, subKey);
 
-  // ── .menu <kategori> → delegate ─────────────────────────
-  if (subKey) {
-    if ((subKey === 'owner' || subKey === 'own') && !isOwn) {
-      return reply('🔒 Kategori ini hanya untuk *owner bot*.');
-    }
+  // main menu
+  const menuText =
+`Halo @${(m.sender || '').split('@')[0]} 👋
 
-    const pluginName = SUB_MAP[subKey];
-    if (!pluginName) {
-      const allowed = Object.keys(SUB_MAP)
-        .filter((k, i, arr) => arr.indexOf(k) === i)
-        .filter(k => {
-          const cat = CATEGORIES.find(c => c.key === k);
-          return !cat?.ownerOnly || isOwn;
-        });
+Aku *${name || 'XYZO Asisten'}* — bot WhatsApp yang siap bantu:
+• Kelola group
+• Tools & utilitas
+• Download & pencarian
+• Mini games
+• Dan fitur owner
 
-      return reply(
-        `❓ Kategori *"${subKey}"* tidak ditemukan.\n\n` +
-        allowed.map(k => `• ${prefix}menu ${k}`).join('\n')
-      );
-    }
-
-    const subPlugin = loadSub(pluginName);
-    if (!subPlugin || typeof subPlugin !== 'function') {
-      return reply(`⚠️ Sub-menu *${subKey}* belum tersedia.`);
-    }
-
-    try {
-      return await subPlugin(m, ctx);
-    } catch (err) {
-      console.error(`[MenuV3] error di "${pluginName}":`, err);
-      return reply(`❌ Error membuka menu *${subKey}*.`);
-    }
-  }
-
-  // ── .menu → tampil menu utama ───────────────────────────
-  const menuText = buildMainMenu({
-    isOwn,
-    prefix,
-    uptime,
-    pushname,
-    senderJid: m.sender
-  });
+` + buildMainMenu({ isOwn, prefix, uptime });
 
   const contextInfo = global.thumbnail
     ? {
@@ -180,8 +197,18 @@ const handler = async (m, ctx) => {
   );
 };
 
-handler.command = ['menu', 'help'];
+// penting: menu router nangkep juga direct command
+handler.command = [
+  'menu', 'help',
+  'owner', 'own',
+  'group', 'grup',
+  'game', 'games',
+  'tools', 'tool',
+  'download', 'dl',
+  'search', 'cari'
+];
+
 handler.tags = ['main'];
-handler.help = ['menu', 'menu <kategori>'];
+handler.help = ['menu', 'tools', 'download', 'search', 'game', 'group', 'owner'];
 
 module.exports = handler;

@@ -3,20 +3,17 @@
 const mafiaGame = require('../Games/mafia');
 
 const handler = async (m, ctx) => {
-  const { sock, isGroup, isOwner, text } = ctx;
+  const { sock, args, isGroup, isOwner, pushName } = ctx;
 
-  const body = text || '';
-  const parts = body.trim().split(/\s+/);
-  const args = parts.slice(1);
-
+  // inject proper properties ke m
   m.isGroup = isGroup;
   m.isOwner = isOwner;
-  m.pushName = ctx.pushName;
+  m.pushName = pushName;
 
   return mafiaGame.handleMafia(
     sock,
     m,
-    args,
+    args || [],
     m.key.remoteJid
   );
 };

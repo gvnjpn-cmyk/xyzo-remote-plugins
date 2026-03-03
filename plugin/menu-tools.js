@@ -1,31 +1,19 @@
 'use strict';
 
-const handler = async (m, ctx) => {
-  const { reply, prefix='.', pushname='' } = ctx;
-
-  const dev = global.developer || {};
-  const devLine = dev?.name ? `Dev: ${dev.name}` : null;
+module.exports = async (m, ctx) => {
+  const { prefix = '.', reply } = ctx;
 
   const text =
-`🛠️ *TOOLS MENU*
-${devLine ? `_${devLine}_\n` : ''}
+`🧰 *TOOLS MENU*
+━━━━━━━━━━━━━━━━━━
+Ketik command langsung ya (tanpa .menu):
 
-Pilih tools yang kamu mau:
+• *${prefix}ping* — cek speed bot
+• *${prefix}runtime* — uptime bot
+• *${prefix}ttf* — total fitur
+• *${prefix}update all* — update semua plugin (owner)
 
-• *${prefix}toimg*
-• *${prefix}tomp3*
-• *${prefix}tourl*
-• *${prefix}sticker*
-• *${prefix}qr*
-• *${prefix}shortlink*
-
-💡 Kamu bisa ketik salah satu command di atas langsung.`;
+📌 Contoh: *${prefix}ping*`;
 
   return reply(text);
 };
-
-handler.command = ['tools', 'tool']; // ✅ jadi .tools
-handler.tags = ['main'];
-handler.help = ['tools'];
-
-module.exports = handler;
